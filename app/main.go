@@ -20,9 +20,10 @@ import (
 type ReloadMsg struct{}
 
 type Model struct {
-	projectList       []gitlab_dash_client.Project
-	projectInfoMap    map[int]gitlab_dash_client.ProjectInfo
-	cursorProjectInfo gitlab_dash_client.ProjectInfo
+	projectList                []gitlab_dash_client.Project
+	projectInfoMap             map[int]gitlab_dash_client.ProjectInfo
+	ignoreTestBranchCompareMap map[int]struct{}
+	cursorProjectInfo          gitlab_dash_client.ProjectInfo
 	//
 	cfg        *config.Config
 	userInfo   *gitlab_dash_client.UserInfo
@@ -59,6 +60,7 @@ func initialModel() Model {
 			ignoreTestBranchCompareMap,
 			cfg.ProjectsData.TestBranchName,
 		),
+		ignoreTestBranchCompareMap: ignoreTestBranchCompareMap,
 	}
 
 	m.fetchProjectInfo()
@@ -97,10 +99,24 @@ func (m *Model) setTableRows() {
 
 	rows := make([]table.Row, 0, len(m.projectList))
 	for _, p := range m.projectList {
+		var hasChanges bool
+
+		projectInfo := m.projectInfoMap[p.ID]
+		defaultBrachActual := projectInfo.DefaultBranchInfo.ActualAndAccessible()
+		tagActual := projectInfo.TagInfo != nil && projectInfo.TagInfo.ActualAndAccessible()
+
+		_, ignoreTestCompare := m.ignoreTestBranchCompareMap[p.ID]
+		if ignoreTestCompare {
+			hasChanges = !tagActual
+		} else {
+			hasChanges = !tagActual || !defaultBrachActual
+		}
+
 		rows = append(rows, table.Row{
 			strconv.Itoa(p.ID),
 			p.Name,
 			p.DefaultBranch,
+			strconv.FormatBool(hasChanges),
 			p.LastActivityDate.In(time.Local).Format(time.DateTime),
 		})
 	}
@@ -118,14 +134,12 @@ func (m Model) userInfoBox() string {
 	key := lipgloss.NewStyle().Foreground(lipgloss.Color(ui_components.COLOR_TEXT_DEFAULT)).Bold(true)
 	val := lipgloss.NewStyle().Foreground(lipgloss.Color(ui_components.COLOR_TEXT_PRIMARY))
 
-	u := m.userInfo
-
 	rows := []string{
 		key.Render("Host:            ") + val.Render(m.cfg.Credentials.Host),
 		key.Render(""),
-		key.Render("UserName:        ") + val.Render(u.UserName),
+		key.Render("UserName:        ") + val.Render(m.userInfo.UserName),
 		key.Render(""),
-		key.Render("Last activity:   ") + val.Render(u.LastActivityOn),
+		key.Render("Last activity:   ") + val.Render(m.userInfo.LastActivityOn),
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
@@ -145,7 +159,7 @@ func (m Model) branchInfoBox(info *gitlab_dash_client.BranchDisplayInfo) string 
 	rows := []string{
 		key.Render("Name:          ") + val.Render(info.Name),
 		key.Render(""),
-		key.Render("Fresh:         ") + val.Render(info.IsActual),
+		key.Render("Fresh:         ") + val.Render(info.IsActualFormat()),
 		key.Render(""),
 		key.Render("Commit date:   ") + val.Render(info.UpdatedAt.In(time.Local).Format(time.DateTime)),
 		key.Render(""),
@@ -159,13 +173,15 @@ func (m *Model) tableLayout() {
 
 	idW := m.width * 5 / 100
 	titleW := m.width * 20 / 100
-	branchW := m.width * 10 / 100
-	activityW := m.width * 15 / 100
+	branchW := m.width * 9 / 100
+	activityW := m.width * 12 / 100
+	hasChangesW := m.width * 9 / 100
 
 	m.table.SetColumns([]table.Column{
 		{Title: "ID", Width: idW},
 		{Title: "Name", Width: titleW},
-		{Title: "Default branch", Width: branchW},
+		{Title: "Def branch", Width: branchW},
+		{Title: "Has changes", Width: hasChangesW},
 		{Title: "Last Activity", Width: activityW},
 	})
 	m.setTableRows()
@@ -215,10 +231,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setTableRows()
 	}
 
-	prev := m.table.Cursor() // где стояли ДО
+	prev := m.table.Cursor()
 
 	var cmd tea.Cmd
-	m.table, cmd = m.table.Update(msg) // навигация сдвинула курсор
+	m.table, cmd = m.table.Update(msg)
 
 	cmds := []tea.Cmd{cmd}
 
@@ -232,10 +248,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() string {
 	topH := m.height * 22 / 100
 	bottomH := m.height - topH
-	rightWidth := m.width * 43 / 100
+	rightWidth := m.width * 38 / 100
 
-	top := ui_components.Box("Common info", m.userInfoBox(), m.width*57/100, topH, ui_components.TitleCenter)
-	bottom := ui_components.Box("Repositories", m.table.View(), m.width*57/100, bottomH, ui_components.TitleCenter)
+	top := ui_components.Box("Common info", m.userInfoBox(), m.width*62/100, topH, ui_components.TitleCenter)
+	bottom := ui_components.Box("Repositories", m.table.View(), m.width*62/100, bottomH, ui_components.TitleCenter)
 	right := ui_components.Box(
 		"Repository info",
 		lipgloss.JoinVertical(

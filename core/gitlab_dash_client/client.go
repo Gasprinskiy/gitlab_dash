@@ -6,7 +6,6 @@ import (
 	"gitlab_api/pkg/http_client"
 	"gitlab_api/pkg/http_request_proxy"
 	"slices"
-	"strconv"
 )
 
 type GitlabDashClient struct {
@@ -102,8 +101,7 @@ func (c *GitlabDashClient) findProjectInfoByID(ctx context.Context, id int, defa
 		zero                  ProjectInfo
 		tagDisplayInfo        *BranchDisplayInfo
 		testBranchDisplayData *BranchDisplayInfo
-		//
-		defaultBranchIsActual = "N/A"
+		defaultBranchIsActual *bool
 	)
 
 	tagData, err := http_request_proxy.HandleHttpClientRequest(
@@ -186,18 +184,19 @@ func (c *GitlabDashClient) findProjectInfoByID(ctx context.Context, id int, defa
 			CommitID:  testBranchData.Commit.ID,
 			Name:      testBranchData.Name,
 			UpdatedAt: testBranchData.Commit.UpdatedAt,
-			IsActual:  "N/A",
 		}
 
-		defaultBranchIsActual = strconv.FormatBool(len(compareInfo.Diffs) == 2)
+		isActual := len(compareInfo.Diffs) == 2
+		defaultBranchIsActual = &isActual
 	}
 
 	if tagData != nil {
+		isAc := tagData.Commit.ID == defaultBranchData.Commit.ID
 		tagDisplayInfo = &BranchDisplayInfo{
 			CommitID:  tagData.Commit.ID,
 			Name:      tagData.Name,
 			UpdatedAt: tagData.Commit.UpdatedAt,
-			IsActual:  strconv.FormatBool(tagData.Commit.ID == defaultBranchData.Commit.ID),
+			IsActual:  &isAc,
 		}
 	}
 

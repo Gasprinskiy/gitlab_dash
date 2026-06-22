@@ -2,6 +2,7 @@ package gitlab_dash_client
 
 import (
 	"encoding/json"
+	"strconv"
 	"time"
 )
 
@@ -36,8 +37,20 @@ type BranchCompareData struct {
 type BranchDisplayInfo struct {
 	UpdatedAt time.Time
 	Name      string
-	IsActual  string
 	CommitID  string
+	IsActual  *bool
+}
+
+func (i *BranchDisplayInfo) IsActualFormat() string {
+	if i.IsActual == nil {
+		return "N/A"
+	}
+
+	return strconv.FormatBool(*i.IsActual)
+}
+
+func (i *BranchDisplayInfo) ActualAndAccessible() bool {
+	return i.IsActual != nil && *i.IsActual == true
 }
 
 type ProjectInfo struct {
