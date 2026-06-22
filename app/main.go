@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"gitlab_api/config"
 	"gitlab_api/core/gitlab_dash_client"
 	"gitlab_api/pkg/http_client"
@@ -16,6 +15,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+type ReloadMsg struct{}
 
 type Model struct {
 	projectList       []gitlab_dash_client.Project
@@ -186,10 +187,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.tableLayout()
+
 	case tea.KeyMsg:
-		if msg.String() == "q" {
+		msgStr := msg.String()
+
+		if msgStr == "q" || msgStr == "ctrl+c" {
 			return m, tea.Quit
 		}
+
+		if msgStr == "ctrl+r" {
+			m.fetchProjectInfo()
+
+			return m, func() tea.Msg {
+				return ReloadMsg{}
+			}
+		}
+
+	case ReloadMsg:
+		m.setTableRows()
 	}
 
 	prev := m.table.Cursor() // где стояли ДО
@@ -252,8 +267,6 @@ func init() {
 }
 
 func main() {
-	fmt.Println("Loading data...")
-
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
