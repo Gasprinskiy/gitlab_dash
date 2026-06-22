@@ -6,105 +6,16 @@ import (
 	"gitlab_api/config"
 	"gitlab_api/core/gitlab_dash_client"
 	"gitlab_api/pkg/http_client"
+	"gitlab_api/ui_components"
 	"log"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
-
-const (
-	COLOR_BORDER        = "#4dad8d"
-	COLOR_TEXT_DEFAULT  = "#ffffffe6"
-	COLOR_TEXT_PRIMARY  = "#63e2b7"
-	SELECTED_BACKGROUND = "#233633"
-)
-
-type TitlePos int
-
-const (
-	TitleLeft TitlePos = iota
-	TitleCenter
-	TitleRight
-)
-
-func box(title, content string, w, h int, pos TitlePos) string {
-	bc := lipgloss.NewStyle().Foreground(lipgloss.Color(COLOR_BORDER)) //
-	b := lipgloss.RoundedBorder()
-
-	style := lipgloss.NewStyle().
-		Border(b).
-		BorderForeground(lipgloss.Color(COLOR_BORDER)).
-		Width(w - 2).Height(h - 2).
-		Padding(1)
-
-	inner := w - 2
-	if inner < 0 {
-		inner = 0
-	}
-
-	label := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(COLOR_TEXT_DEFAULT)).
-		Render(" " + title + " ")
-	labelW := lipgloss.Width(label)
-
-	if labelW > inner {
-		label, labelW = "", 0
-	}
-
-	remaining := inner - labelW
-
-	var leftPad, rightPad int
-	switch pos {
-	case TitleCenter:
-		leftPad = remaining / 2
-		rightPad = remaining - leftPad
-	case TitleRight:
-		rightPad = 1
-		if rightPad > remaining {
-			rightPad = remaining
-		}
-		leftPad = remaining - rightPad
-	default:
-		leftPad = 1
-		if leftPad > remaining {
-			leftPad = remaining
-		}
-		rightPad = remaining - leftPad
-	}
-
-	top := bc.Render(b.TopLeft) +
-		bc.Render(strings.Repeat(b.Top, leftPad)) +
-		label +
-		bc.Render(strings.Repeat(b.Top, rightPad)) +
-		bc.Render(b.TopRight)
-
-	lines := strings.Split(style.Render(content), "\n")
-	lines[0] = top
-	return strings.Join(lines, "\n")
-}
-
-func tableStyles() table.Styles {
-	s := table.DefaultStyles()
-
-	s.Header = s.Header.
-		Foreground(lipgloss.Color(COLOR_TEXT_DEFAULT)).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color(COLOR_BORDER)).
-		BorderBottom(true).
-		Bold(true)
-
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color(COLOR_TEXT_DEFAULT)).
-		Background(lipgloss.Color(SELECTED_BACKGROUND)).
-		Bold(true)
-
-	return s
-}
 
 type Model struct {
 	projectList       []gitlab_dash_client.Project
@@ -136,7 +47,7 @@ func initialModel() Model {
 
 	m := Model{
 		cfg:   cfg,
-		table: table.New(table.WithFocused(true), table.WithStyles(tableStyles())),
+		table: table.New(table.WithFocused(true), table.WithStyles(ui_components.TableStyles())),
 		dashClient: gitlab_dash_client.NewGitlabDashClient(
 			http_client.NewHttpClient(
 				cfg.Credentials.Host,
@@ -202,8 +113,8 @@ func (m *Model) setCurrentCursorProjectInfo() {
 }
 
 func (m Model) userInfoBox() string {
-	key := lipgloss.NewStyle().Foreground(lipgloss.Color(COLOR_TEXT_DEFAULT)).Bold(true)
-	val := lipgloss.NewStyle().Foreground(lipgloss.Color(COLOR_TEXT_PRIMARY))
+	key := lipgloss.NewStyle().Foreground(lipgloss.Color(ui_components.COLOR_TEXT_DEFAULT)).Bold(true)
+	val := lipgloss.NewStyle().Foreground(lipgloss.Color(ui_components.COLOR_TEXT_PRIMARY))
 
 	u := m.userInfo
 
@@ -219,8 +130,8 @@ func (m Model) userInfoBox() string {
 }
 
 func (m Model) branchInfoBox(info *gitlab_dash_client.BranchDisplayInfo) string {
-	key := lipgloss.NewStyle().Foreground(lipgloss.Color(COLOR_TEXT_DEFAULT)).Bold(true)
-	val := lipgloss.NewStyle().Foreground(lipgloss.Color(COLOR_TEXT_PRIMARY))
+	key := lipgloss.NewStyle().Foreground(lipgloss.Color(ui_components.COLOR_TEXT_DEFAULT)).Bold(true)
+	val := lipgloss.NewStyle().Foreground(lipgloss.Color(ui_components.COLOR_TEXT_PRIMARY))
 	if info == nil {
 		rows := []string{
 			key.Render("Not found"),
@@ -300,37 +211,37 @@ func (m Model) View() string {
 	bottomH := m.height - topH
 	rightWidth := m.width * 43 / 100
 
-	top := box("Common info", m.userInfoBox(), m.width*57/100, topH, TitleCenter)
-	bottom := box("Repositories", m.table.View(), m.width*57/100, bottomH, TitleCenter)
-	right := box(
+	top := ui_components.Box("Common info", m.userInfoBox(), m.width*57/100, topH, ui_components.TitleCenter)
+	bottom := ui_components.Box("Repositories", m.table.View(), m.width*57/100, bottomH, ui_components.TitleCenter)
+	right := ui_components.Box(
 		"Repository info",
 		lipgloss.JoinVertical(
 			lipgloss.Top,
-			box(
+			ui_components.Box(
 				"Last tag",
 				m.branchInfoBox(m.cursorProjectInfo.TagInfo),
 				rightWidth-4,
 				m.height*20/100,
-				TitleLeft,
+				ui_components.TitleLeft,
 			),
-			box(
+			ui_components.Box(
 				"Default branch",
 				m.branchInfoBox(&m.cursorProjectInfo.DefaultBranchInfo),
 				rightWidth-4,
 				m.height*20/100,
-				TitleLeft,
+				ui_components.TitleLeft,
 			),
-			box(
+			ui_components.Box(
 				"Test branch",
 				m.branchInfoBox(m.cursorProjectInfo.TestBranchInfo),
 				rightWidth-4,
 				m.height*20/100,
-				TitleLeft,
+				ui_components.TitleLeft,
 			),
 		),
 		rightWidth,
 		m.height,
-		TitleCenter,
+		ui_components.TitleCenter,
 	)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.JoinVertical(lipgloss.Left, top, bottom), right)
