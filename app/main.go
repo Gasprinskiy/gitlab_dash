@@ -5,6 +5,7 @@ import (
 	"gitlab_api/config"
 	"gitlab_api/core/gitlab_dash_client"
 	"gitlab_api/pkg/http_client"
+	"gitlab_api/pkg/s_call"
 	"gitlab_api/ui_components"
 	"log"
 	"runtime"
@@ -200,6 +201,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, func() tea.Msg {
 				return ReloadMsg{}
+			}
+		}
+
+		if msgStr == "enter" {
+			idx := m.table.Cursor()
+			if idx >= 0 && idx <= (len(m.projectList)-1) {
+				s_call.OpenBrowser(m.projectList[idx].WebUrl)
 			}
 		}
 
